@@ -1,4 +1,5 @@
 # Fraud Detection
+![CI](https://github.com/ai-crypto-onramp/fraud-detection/actions/workflows/ci.yml/badge.svg)
 
 ML scoring on payment + behavioral signals (chargeback/velocity models); feeds the policy engine.
 
