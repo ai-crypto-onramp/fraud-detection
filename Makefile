@@ -4,7 +4,7 @@ build:
 	pip install -e .
 
 test:
-	pytest -q
+	pytest -q --cov=fraud_detection --cov-report=xml:coverage.xml
 
 run:
 	uvicorn fraud_detection.app:app --host 0.0.0.0 --port 8080
@@ -16,4 +16,4 @@ docker-run:
 	docker run --rm -p 8080:8080 ai-crypto-onramp/fraud-detection
 
 clean:
-	rm -rf dist build *.egg-info .pytest_cache
+	rm -rf dist build *.egg-info .pytest_cache coverage.xml .coverage
