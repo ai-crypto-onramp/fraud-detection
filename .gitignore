@@ -7,3 +7,5 @@ dist/
 build/
 .envcoverage.xml
 .coverage
+# Feast local registry / data artifacts
+feature_repo/data/

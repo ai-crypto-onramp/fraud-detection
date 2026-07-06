@@ -1,4 +1,4 @@
-.PHONY: build test run docker-build docker-run clean
+.PHONY: build test run docker-build docker-run clean migrate lint
 
 build:
 	pip install -e .
@@ -8,6 +8,12 @@ test:
 
 run:
 	uvicorn fraud_detection.app:app --host 0.0.0.0 --port 8080
+
+migrate:
+	python -m fraud_detection.migrate
+
+lint:
+	ruff check .
 
 docker-build:
 	docker build -t ai-crypto-onramp/fraud-detection .

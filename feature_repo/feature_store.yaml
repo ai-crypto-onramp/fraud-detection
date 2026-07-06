@@ -1,0 +1,17 @@
+# Feast feature store configuration for the Fraud Detection service.
+#
+# The online store is Redis (per README "Feature store: Feast (online lookups
+# via Redis)"). The connection_string is the Redis host:port (Feast expects
+# `host:port[,host:port...]`, not a `redis://` URL). Override at runtime by
+# exporting FEATURE_STORE_URL (e.g. `redis:6379`) — the config loader in
+# `app/config.py` (Stage 1 task) substitutes it into this file before apply,
+# or set it directly here for local development.
+project: fraud_detection
+registry: data/registry.db
+provider: local
+online_store:
+    type: redis
+    connection_string: redis:6379
+entity_key_serialization_version: 3
+offline_store:
+    type: file

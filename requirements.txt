@@ -4,3 +4,7 @@ pytest
 pytest-asyncio
 httpx
 pytest-cov
+feast
+redis
+psycopg
+sqlglot
