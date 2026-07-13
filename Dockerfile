@@ -11,7 +11,8 @@ FROM python:3.11-slim AS runtime
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH=/install/bin:$PATH
+    PATH=/install/bin:$PATH \
+    PYTHONPATH=/install/lib/python3.11/site-packages:/app/src
 RUN groupadd --system --gid 1001 fraud && \
     useradd --system --uid 1001 --gid fraud --create-home --home-dir /home/fraud fraud
 COPY --from=builder /install /install
