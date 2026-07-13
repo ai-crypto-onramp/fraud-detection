@@ -1,4 +1,4 @@
-.PHONY: build test run docker-build docker-run clean
+.PHONY: build test run lint typecheck migrate up down docker-build docker-run train clean
 
 build:
 	pip install -e .
@@ -6,8 +6,28 @@ build:
 test:
 	pytest -q --cov=fraud_detection --cov-report=xml:coverage.xml
 
+lint:
+	ruff check src tests feature_repo
+
+typecheck:
+	mypy src/fraud_detection
+
 run:
 	uvicorn fraud_detection.app:app --host 0.0.0.0 --port 8080
+
+migrate:
+	@echo "Apply migrations/001_init.sql against DB_URL"
+	python -c "from fraud_detection.db import PostgresStore; from fraud_detection.config import get_settings; s=PostgresStore(get_settings().db_url); s.apply_migrations(); print('migrated')"
+
+train:
+	python -m fraud_detection.training.train_chargeback --dataset data/chargeback_dataset.json
+	python -m fraud_detection.training.train_velocity --dataset data/velocity_dataset.json
+
+up:
+	docker compose up -d
+
+down:
+	docker compose down
 
 docker-build:
 	docker build -t ai-crypto-onramp/fraud-detection .

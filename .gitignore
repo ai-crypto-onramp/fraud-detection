@@ -8,3 +8,8 @@ build/
 .env
 coverage.xml
 .coverage
+data/
+.ruff_cache/
+.mypy_cache/
+mlflow.db
+mlruns/

@@ -1,11 +1,38 @@
-from fastapi import FastAPI
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
+
+from .audit import AuditEmitter
+from .config import Settings, get_settings
+from .db import PostgresStore, RedisStore
+from .feature_store import FeatureStoreClient, InMemoryFeatureStore
+from .models.schemas import (
+    FeedbackRequest,
+    ModelInfo,
+    ModelsResponse,
+    ScoreRequest,
+    ScoreResponse,
+)
+from .observability.monitoring import VARIANT_TRAFFIC, AlertSink, DriftMonitor
+from .registry import ModelRegistry
+from .scoring import ModelLoader, score_request
 
 app = FastAPI(title="Fraud Detection")
 
-# Dependency probe stubs. In production each would perform a real
-# round-trip to the named service; here they report healthy so the
-# readiness endpoint can be exercised end-to-end.
+_DEFAULT_SETTINGS = get_settings()
+_DEFAULT_DB = PostgresStore(_DEFAULT_SETTINGS.db_url)
+_DEFAULT_REDIS = RedisStore(_DEFAULT_SETTINGS.redis_url)
+_DEFAULT_FEATURE_STORE = InMemoryFeatureStore(_DEFAULT_SETTINGS)
+_DEFAULT_LOADER = ModelLoader(_DEFAULT_SETTINGS.model_registry_url)
+_DEFAULT_REGISTRY = ModelRegistry(_DEFAULT_SETTINGS, db=None, loader=_DEFAULT_LOADER)
+_DEFAULT_AUDIT = AuditEmitter(db=None, audit_topic=_DEFAULT_SETTINGS.audit_topic)
+_DEFAULT_ALERTS = AlertSink()
+_DEFAULT_DRIFT = DriftMonitor(_DEFAULT_SETTINGS, db=None, alert_sink=_DEFAULT_ALERTS)
+
+
 def db_ready() -> bool: return True
 def mq_ready() -> bool: return True
 def rules_ready() -> bool: return True
@@ -83,3 +110,89 @@ async def readyz() -> JSONResponse:
     results["failed"] = str(failed)
     results["total"] = str(total)
     return JSONResponse(status_code=code, content=results)
+
+
+def _store_for(score_req: ScoreRequest) -> ScoreRequest:
+    return score_req
+
+
+def _features_for(
+    feature_store: FeatureStoreClient, req: ScoreRequest,
+) -> dict[str, Any]:
+    feats: dict[str, Any] = {}
+    feats.update(feature_store.get_features(req.user_id, "user_velocity") or {})
+    feats.update(feature_store.get_features(req.user_id, "payment_history") or {})
+    feats.update(feature_store.get_features(req.device.fingerprint, "device") or {})
+    feats.update(feature_store.get_features(req.user_id, "geolocation") or {})
+    feats["session_duration_ms"] = req.behavioral_features.session_duration_ms
+    feats["keystroke_entropy"] = req.behavioral_features.keystroke_entropy
+    feats["tap_variance"] = req.behavioral_features.tap_variance
+    return feats
+
+
+def _do_score(
+    req: ScoreRequest,
+    *,
+    settings: Settings | None = None,
+    feature_store: FeatureStoreClient | None = None,
+    registry: ModelRegistry | None = None,
+    audit: AuditEmitter | None = None,
+) -> ScoreResponse:
+    settings = settings or _DEFAULT_SETTINGS
+    feature_store = feature_store or _DEFAULT_FEATURE_STORE
+    registry = registry or _DEFAULT_REGISTRY
+    audit = audit or _DEFAULT_AUDIT
+    feats = _features_for(feature_store, req)
+    model_name = "chargeback-xgb"
+    tx_id = req.tx_id or req.payment_id
+    split = registry.traffic_split_for(model_name)
+    from .models.routing import pick_variant, resolve_split
+    variant = pick_variant(
+        tx_id,
+        challenger_fraction=resolve_split(split, default_challenger_fraction=settings.challenger_traffic_fraction),
+        force_variant=settings.force_variant,
+    )
+    version = registry.resolve_version(model_name, variant) or "v3.2.0-stub"
+    model = registry.get_model(model_name, version)
+    resp = score_request(
+        req, features=feats, model=model, model_version=f"{model_name}@{version}",
+        threshold_high=settings.score_threshold_high,
+        threshold_medium=settings.score_threshold_medium,
+        challenger_fraction=settings.challenger_traffic_fraction,
+        traffic_split=split, force_variant=settings.force_variant,
+    )
+    VARIANT_TRAFFIC.labels(variant=resp.variant).inc()
+    audit.emit(req, resp, feature_snapshot_uri=f"feature_values:{tx_id}")
+    return resp
+
+
+@app.post("/v1/fraud/score", response_model=ScoreResponse)
+async def score(req: ScoreRequest) -> ScoreResponse:
+    return _do_score(req)
+
+
+@app.get("/v1/fraud/models", response_model=ModelsResponse)
+async def list_models() -> ModelsResponse:
+    models = _DEFAULT_REGISTRY.list_models()
+    out: list[ModelInfo] = []
+    for m in models:
+        breaches = _DEFAULT_DRIFT.breaches_for(m["name"])
+        out.append(ModelInfo(
+            name=m["name"], champion=m["champion"], challenger=m["challenger"],
+            traffic_split=m["traffic_split"], updated_at=m["updated_at"],
+            drift_breaches=breaches,
+        ))
+    return ModelsResponse(models=out)
+
+
+@app.post("/v1/fraud/feedback")
+async def feedback(req: FeedbackRequest) -> Response:
+    if req.outcome not in {"chargeback", "fraud", "clean"}:
+        raise HTTPException(status_code=422, detail="invalid outcome")
+    inserted = _DEFAULT_DB.upsert_chargeback(
+        tx_id=req.tx_id, outcome=req.outcome, reason_code=req.reason_code,
+        source=req.source, reported_at=req.reported_at,
+    )
+    if not inserted:
+        return Response(status_code=204)
+    return Response(status_code=204)

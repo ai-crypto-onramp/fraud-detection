@@ -276,3 +276,46 @@ uv run python -m app.training.train_velocity    --config config/velocity.yaml
 # Backfill features into the offline + online store
 uv run python -m app.features.backfill --since 2026-01-01
 ```
+
+### Full dev loop with Make
+
+```bash
+make up            # docker compose up -d (Postgres, Redis, Kafka, MLflow, service)
+make migrate       # apply migrations/001_init.sql against DB_URL
+make test          # pytest with coverage
+make lint          # ruff check src tests feature_repo
+make typecheck     # mypy src/fraud_detection
+make train         # run chargeback + velocity training entrypoints
+make docker-build  # build the multi-stage Docker image
+make clean         # remove build/coverage artifacts
+```
+
+### Source layout
+
+```
+src/fraud_detection/
+  app.py             FastAPI app (healthz, readyz, /v1/fraud/* endpoints)
+  config.py          12-factor settings (env vars)
+  db.py              Postgres + Redis connection helpers and queries
+  feature_store.py   Feast online store wrapper + InMemory test store
+  registry.py        MLflow-backed model registry + model_versions table
+  scoring.py         StubModel, SHAP top-features, score_request
+  audit.py           fraud.audit emitter (exactly-once per score)
+  replay.py          replay tool reconstructing scores from audit + snapshot
+  models/schemas.py  Pydantic request/response models
+  models/routing.py  stable-hash A/B routing + risk_band thresholds
+  features/engineering.py  user_velocity / payment_history / device / geolocation
+  features/backfill.py     backfill CLI (--since YYYY-MM-DD)
+  consumers/kafka.py       aiokafka consumer for payment.*/chargeback.*
+  observability/drift.py   PSI + KS helpers
+  observability/monitoring.py  DriftMonitor + Prometheus metrics + alerts
+  training/train_chargeback.py  chargeback training entrypoint
+  training/train_velocity.py   velocity training entrypoint
+  training/scheduler.py        daily/weekly retrain schedules + promotion gate
+feature_repo/
+  features.py          Feast entity + feature-view definitions
+  feature_store.yaml   Feast repo config (Redis online store)
+migrations/
+  001_init.sql         fraud_scores, model_versions, feature_values,
+                       chargeback_events, drift_metrics tables
+```

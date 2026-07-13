@@ -16,12 +16,12 @@ has a place to read features from and persist scores, model versions, and
 feedback labels.
 
 **Tasks:**
-- [ ] Add Postgres migrations for `fraud_scores`, `model_versions`, `feature_values`, `chargeback_events` tables per README data model.
-- [ ] Bootstrap Feast feature repo (`feature_repo/`) with Redis online store config.
-- [ ] Define entity definitions (`user`, `device`, `tx`) and skeleton feature group files.
-- [ ] Add connection helpers for Postgres (`DB_URL`) and Redis (`REDIS_URL`/`FEATURE_STORE_URL`) with health checks.
-- [ ] Wire config loading from environment variables (12-factor) in `app/config.py`.
-- [ ] Add a `make migrate` target and a smoke test that applies migrations against a containerized Postgres.
+- [x] Add Postgres migrations for `fraud_scores`, `model_versions`, `feature_values`, `chargeback_events` tables per README data model.
+- [x] Bootstrap Feast feature repo (`feature_repo/`) with Redis online store config.
+- [x] Define entity definitions (`user`, `device`, `tx`) and skeleton feature group files.
+- [x] Add connection helpers for Postgres (`DB_URL`) and Redis (`REDIS_URL`/`FEATURE_STORE_URL`) with health checks.
+- [x] Wire config loading from environment variables (12-factor) in `app/config.py`.
+- [x] Add a `make migrate` target and a smoke test that applies migrations against a containerized Postgres.
 
 **Acceptance criteria:**
 - Migrations apply cleanly to a fresh Postgres and tables match the README data model.
@@ -35,15 +35,15 @@ feedback labels.
 online stores from historical events.
 
 **Tasks:**
-- [ ] Define `user_velocity` feature view (tx count/sum last 1h, 24h, 7d; distinct cards/devices/IPs).
-- [ ] Define `payment_history` feature view (success/fail ratio, avg ticket, first-payment age).
-- [ ] Define `device` feature view (fingerprint hash, new-to-user flag, known-bad flag, emulator/rooted).
-- [ ] Define `geolocation` feature view (IP country, distance from billing, VPN/proxy flag, geo-velocity).
-- [ ] Implement `app/features/backfill.py` CLI (`--since YYYY-MM-DD`) that reads historical events and materializes features.
-- [ ] Integrate a known-bad device list source (configurable; stubbed for tests).
-- [ ] Add IP enrichment helper (country, proxy detection) with a swappable provider.
-- [ ] Add unit tests for aggregation windows, distinct-count, new-to-user detection, geo-velocity, and distance computation.
-- [ ] Document local backfill command in README dev section.
+- [x] Define `user_velocity` feature view (tx count/sum last 1h, 24h, 7d; distinct cards/devices/IPs).
+- [x] Define `payment_history` feature view (success/fail ratio, avg ticket, first-payment age).
+- [x] Define `device` feature view (fingerprint hash, new-to-user flag, known-bad flag, emulator/rooted).
+- [x] Define `geolocation` feature view (IP country, distance from billing, VPN/proxy flag, geo-velocity).
+- [x] Implement `app/features/backfill.py` CLI (`--since YYYY-MM-DD`) that reads historical events and materializes features.
+- [x] Integrate a known-bad device list source (configurable; stubbed for tests).
+- [x] Add IP enrichment helper (country, proxy detection) with a swappable provider.
+- [x] Add unit tests for aggregation windows, distinct-count, new-to-user detection, geo-velocity, and distance computation.
+- [x] Document local backfill command in README dev section.
 
 **Acceptance criteria:**
 - `uv run python -m app.features.backfill --since 2026-01-01` populates Redis online store and a Parquet offline store for all four feature groups.
@@ -58,14 +58,14 @@ online stores from historical events.
 model_version, top SHAP features, and `scored_at`.
 
 **Tasks:**
-- [ ] Scaffold FastAPI app (`app/main.py`) with `/healthz` and `/readyz`.
-- [ ] Implement request/response Pydantic models matching README examples.
-- [ ] Wire feature fetch from Feast online store into the scoring path.
-- [ ] Load a stub model (pickle) and compute a deterministic score for the happy path.
-- [ ] Compute risk_band from `SCORE_THRESHOLD_HIGH`/`SCORE_THRESHOLD_MEDIUM`.
-- [ ] Compute SHAP top-3 features for the response.
-- [ ] Persist the score row to `fraud_scores` and a snapshot to `feature_values`.
-- [ ] Add integration test with a fixture model and stubbed feature store.
+- [x] Scaffold FastAPI app (`app/main.py`) with `/healthz` and `/readyz`.
+- [x] Implement request/response Pydantic models matching README examples.
+- [x] Wire feature fetch from Feast online store into the scoring path.
+- [x] Load a stub model (pickle) and compute a deterministic score for the happy path.
+- [x] Compute risk_band from `SCORE_THRESHOLD_HIGH`/`SCORE_THRESHOLD_MEDIUM`.
+- [x] Compute SHAP top-3 features for the response.
+- [x] Persist the score row to `fraud_scores` and a snapshot to `feature_values`.
+- [x] Add integration test with a fixture model and stubbed feature store.
 
 **Acceptance criteria:**
 - `POST /v1/fraud/score` returns 200 with the documented JSON shape on a valid request.
@@ -79,12 +79,12 @@ model_version, top SHAP features, and `scored_at`.
 listing registered models, versions, stages, and A/B traffic split metadata.
 
 **Tasks:**
-- [ ] Add MLflow client wired to `MODEL_REGISTRY_URL`.
-- [ ] Implement model loading by name + version with caching and hot-reload on stage transition.
-- [ ] Persist registered model metadata into `model_versions` table.
-- [ ] Implement `GET /v1/fraud/models` returning champion/challenger and traffic_split per README shape.
-- [ ] Stage transitions (`staging → champion → archived`) are audited (log + table row).
-- [ ] Add training entrypoints `app/training/train_chargeback.py` and `train_velocity.py` that log params, metrics (AUC, PR-AUC, calibration), and feature snapshot URI.
+- [x] Add MLflow client wired to `MODEL_REGISTRY_URL`.
+- [x] Implement model loading by name + version with caching and hot-reload on stage transition.
+- [x] Persist registered model metadata into `model_versions` table.
+- [x] Implement `GET /v1/fraud/models` returning champion/challenger and traffic_split per README shape.
+- [x] Stage transitions (`staging → champion → archived`) are audited (log + table row).
+- [x] Add training entrypoints `app/training/train_chargeback.py` and `train_velocity.py` that log params, metrics (AUC, PR-AUC, calibration), and feature snapshot URI.
 
 **Acceptance criteria:**
 - A trained model is registered, appears in `GET /v1/fraud/models`, and is loadable by the scoring endpoint.
@@ -97,11 +97,11 @@ listing registered models, versions, stages, and A/B traffic split metadata.
 as the label source for the retraining pipeline.
 
 **Tasks:**
-- [ ] Implement `POST /v1/fraud/feedback` endpoint with Pydantic validation (`outcome ∈ {chargeback, fraud, clean}`).
-- [ ] Persist rows to `chargeback_events` (idempotent on `tx_id` + `reported_at`).
-- [ ] Add a query helper to fetch labeled samples since a watermark for retraining.
-- [ ] Wire the daily (velocity) and weekly (chargeback) retrain schedules to pull labels and register a candidate.
-- [ ] Add promotion gate (human approval) before a candidate becomes challenger/champion.
+- [x] Implement `POST /v1/fraud/feedback` endpoint with Pydantic validation (`outcome ∈ {chargeback, fraud, clean}`).
+- [x] Persist rows to `chargeback_events` (idempotent on `tx_id` + `reported_at`).
+- [x] Add a query helper to fetch labeled samples since a watermark for retraining.
+- [x] Wire the daily (velocity) and weekly (chargeback) retrain schedules to pull labels and register a candidate.
+- [x] Add promotion gate (human approval) before a candidate becomes challenger/champion.
 
 **Acceptance criteria:**
 - `POST /v1/fraud/feedback` returns 204 on valid input and 422 on invalid `outcome`.
@@ -114,11 +114,11 @@ as the label source for the retraining pipeline.
 of `tx_id` according to configurable per-model traffic splits.
 
 **Tasks:**
-- [ ] Implement stable hash routing over `tx_id` (deterministic, unit-tested).
-- [ ] Resolve active traffic split per model name from the registry; default via `CHALLENGER_TRAFFIC_FRACTION`.
-- [ ] Log which variant scored each request; emit `variant` field in audit payload.
-- [ ] Expose per-variant online metrics (score distribution, alert rate) for comparison.
-- [ ] Add a config knob to force a single variant for canary/debug.
+- [x] Implement stable hash routing over `tx_id` (deterministic, unit-tested).
+- [x] Resolve active traffic split per model name from the registry; default via `CHALLENGER_TRAFFIC_FRACTION`.
+- [x] Log which variant scored each request; emit `variant` field in audit payload.
+- [x] Expose per-variant online metrics (score distribution, alert rate) for comparison.
+- [x] Add a config knob to force a single variant for canary/debug.
 
 **Acceptance criteria:**
 - Over 10k synthetic requests, observed split matches configured fraction within ±1%.
@@ -131,11 +131,11 @@ of `tx_id` according to configurable per-model traffic splits.
 model, breaching `DRIFT_PSI_THRESHOLD` to open an alert.
 
 **Tasks:**
-- [ ] Implement PSI and KS statistic helpers with unit tests.
-- [ ] Add a scheduled job comparing the current day's feature/score distribution against the training baseline.
-- [ ] Persist drift metrics and breach flags to a `drift_metrics` table (or extension).
-- [ ] Emit `fraud.alert.raised` on breach and surface in `GET /v1/fraud/models` health.
-- [ ] Wire optional auto-trigger of retraining on repeated breach.
+- [x] Implement PSI and KS statistic helpers with unit tests.
+- [x] Add a scheduled job comparing the current day's feature/score distribution against the training baseline.
+- [x] Persist drift metrics and breach flags to a `drift_metrics` table (or extension).
+- [x] Emit `fraud.alert.raised` on breach and surface in `GET /v1/fraud/models` health.
+- [x] Wire optional auto-trigger of retraining on repeated breach.
 
 **Acceptance criteria:**
 - Drift job runs daily and writes per-feature PSI/KS with timestamps.
@@ -149,13 +149,13 @@ model, breaching `DRIFT_PSI_THRESHOLD` to open an alert.
 `fraud.audit`.
 
 **Tasks:**
-- [ ] Add `aiokafka` consumer worker consuming `payment.*` and `chargeback.*` topics with group `fraud-detection`.
-- [ ] Reuse the scoring path to score consumed payments.
-- [ ] Emit `fraud.scored` for every score; `fraud.alert.raised` when score ≥ `SCORE_THRESHOLD_HIGH`.
-- [ ] Emit `fraud.audit` (immutable) for every score for the Audit / Event Log consumer.
-- [ ] Handle `chargeback.received` by routing to the feedback path (Stage 5).
-- [ ] Add consumer lag and throughput Prometheus metrics.
-- [ ] Integration test with an in-process Kafka (or testcontainers) fixture.
+- [x] Add `aiokafka` consumer worker consuming `payment.*` and `chargeback.*` topics with group `fraud-detection`.
+- [x] Reuse the scoring path to score consumed payments.
+- [x] Emit `fraud.scored` for every score; `fraud.alert.raised` when score ≥ `SCORE_THRESHOLD_HIGH`.
+- [x] Emit `fraud.audit` (immutable) for every score for the Audit / Event Log consumer.
+- [x] Handle `chargeback.received` by routing to the feedback path (Stage 5).
+- [x] Add consumer lag and throughput Prometheus metrics.
+- [x] Integration test with an in-process Kafka (or testcontainers) fixture.
 
 **Acceptance criteria:**
 - Consumer processes `payment.authorized` events end-to-end and emits `fraud.scored` + `fraud.audit`.
@@ -168,11 +168,11 @@ model, breaching `DRIFT_PSI_THRESHOLD` to open an alert.
 and ensure the audit trail is complete enough for compliance replay.
 
 **Tasks:**
-- [ ] Define `fraud.audit` Avro/JSON schema with tx_id, user_id, score, risk_band, model_version, variant, top_features, feature snapshot URI, scored_at.
-- [ ] Emit audit on every scoring path (REST + Kafka consumer) exactly-once per score.
-- [ ] Persist a local audit copy to `fraud_scores` (retained 7 years) for replay/debug.
-- [ ] Add a replay tool (`app/replay.py`) that reconstructs scores from audit + feature snapshots.
-- [ ] Tests assert audit emission for both paths and idempotency.
+- [x] Define `fraud.audit` Avro/JSON schema with tx_id, user_id, score, risk_band, model_version, variant, top_features, feature snapshot URI, scored_at.
+- [x] Emit audit on every scoring path (REST + Kafka consumer) exactly-once per score.
+- [x] Persist a local audit copy to `fraud_scores` (retained 7 years) for replay/debug.
+- [x] Add a replay tool (`app/replay.py`) that reconstructs scores from audit + feature snapshots.
+- [x] Tests assert audit emission for both paths and idempotency.
 
 **Acceptance criteria:**
 - Every score (sync and async) emits exactly one `fraud.audit` event.
@@ -185,12 +185,12 @@ and ensure the audit trail is complete enough for compliance replay.
 production-ready Docker image plus compose stack.
 
 **Tasks:**
-- [ ] Raise unit + integration test coverage to ≥ 80% (enforced via Codecov).
-- [ ] Add `ruff` and `mypy` to CI; gate merges on green.
-- [ ] Finalize `Dockerfile` (multi-stage, non-root user, healthcheck).
-- [ ] Add `docker-compose.yml` with Postgres, Redis, Kafka, MLflow, and the service.
-- [ ] Add a Makefile target `make up` / `make test` / `make lint` / `make train`.
-- [ ] Document the full local dev loop in README.
+- [x] Raise unit + integration test coverage to ≥ 80% (enforced via Codecov).
+- [x] Add `ruff` and `mypy` to CI; gate merges on green.
+- [x] Finalize `Dockerfile` (multi-stage, non-root user, healthcheck).
+- [x] Add `docker-compose.yml` with Postgres, Redis, Kafka, MLflow, and the service.
+- [x] Add a Makefile target `make up` / `make test` / `make lint` / `make train`.
+- [x] Document the full local dev loop in README.
 
 **Acceptance criteria:**
 - `uv run pytest` passes with ≥ 80% coverage and Codecov upload works.

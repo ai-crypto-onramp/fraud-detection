@@ -1,0 +1,7 @@
+model_name: velocity-isoforest
+version: v1.5.0-rc1
+stage: challenger
+dataset: data/velocity_dataset.json
+metrics: [auc, pr_auc, calibration]
+traffic_split:
+  champion: 1.0

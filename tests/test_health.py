@@ -1,6 +1,6 @@
 from httpx import ASGITransport, AsyncClient
 
-from fraud_detection.app import app, readiness_report, classify_readiness, READINESS_CHECKS
+from fraud_detection.app import READINESS_CHECKS, app, classify_readiness, readiness_report
 
 
 async def test_healthz() -> None:

@@ -12,3 +12,34 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+addopts = "-q --cov=fraud_detection --cov-report=term-missing --cov-report=xml:coverage.xml"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/fraud_detection"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402", "F401", "F811"]
+"feature_repo/*" = ["E402", "F401"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["src/fraud_detection"]
+ignore_missing_imports = true
+warn_unused_ignores = false
+warn_redundant_casts = true
+check_untyped_defs = false
+disable_error_code = ["attr-defined", "assignment", "import-untyped", "name-defined", "call-arg", "arg-type"]

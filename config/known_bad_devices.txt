@@ -1,0 +1,4 @@
+# Known-bad device fingerprints (one per line). Stub for tests.
+fp_bad_1
+fp_bad_2
+fp_emulator_rooted
