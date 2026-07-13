@@ -9,6 +9,12 @@ user = Entity(name="user_id", value_type=ValueType.STRING, description="user ide
 device = Entity(name="device_id", value_type=ValueType.STRING, description="device fingerprint")
 tx = Entity(name="tx_id", value_type=ValueType.STRING, description="transaction id")
 
+events_source = FileSource(
+    name="events_source",
+    path="data/events.parquet",
+    timestamp_field="event_ts",
+)
+
 user_velocity_view = FeatureView(
     name="user_velocity",
     entities=[user],
@@ -22,6 +28,7 @@ user_velocity_view = FeatureView(
         Field(name="distinct_devices_24h", dtype=Int64),
         Field(name="distinct_ips_24h", dtype=Int64),
     ],
+    source=events_source,
     online=True,
 )
 
@@ -34,6 +41,7 @@ payment_history_view = FeatureView(
         Field(name="avg_ticket_30d", dtype=Float32),
         Field(name="first_payment_age_days", dtype=Int64),
     ],
+    source=events_source,
     online=True,
 )
 
@@ -48,6 +56,7 @@ device_view = FeatureView(
         Field(name="emulator", dtype=Int64),
         Field(name="rooted", dtype=Int64),
     ],
+    source=events_source,
     online=True,
 )
 
@@ -61,6 +70,7 @@ geolocation_view = FeatureView(
         Field(name="vpn_proxy", dtype=Int64),
         Field(name="geo_velocity_kmh", dtype=Float32),
     ],
+    source=events_source,
     online=True,
 )
 
