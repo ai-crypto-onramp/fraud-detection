@@ -181,7 +181,7 @@ and ensure the audit trail is complete enough for compliance replay.
 
 ## Stage 10: Tests, Coverage & Docker
 
-**Goal:** Harden the service with comprehensive tests, coverage gating, and a
+**Goal:** Harden the service with comprehensive tests, and a
 production-ready Docker image plus compose stack.
 
 **Tasks:**
