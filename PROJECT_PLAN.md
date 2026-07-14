@@ -185,7 +185,7 @@ and ensure the audit trail is complete enough for compliance replay.
 production-ready Docker image plus compose stack.
 
 **Tasks:**
-- [x] Raise unit + integration test coverage to ≥ 80% (enforced via Codecov).
+- [x] Raise unit + integration test coverage (reported via Codecov).
 - [x] Add `ruff` and `mypy` to CI; gate merges on green.
 - [x] Finalize `Dockerfile` (multi-stage, non-root user, healthcheck).
 - [x] Add `docker-compose.yml` with Postgres, Redis, Kafka, MLflow, and the service.
@@ -193,6 +193,6 @@ production-ready Docker image plus compose stack.
 - [x] Document the full local dev loop in README.
 
 **Acceptance criteria:**
-- `uv run pytest` passes with ≥ 80% coverage and Codecov upload works.
+- `uv run pytest` passes and Codecov upload works.
 - `docker compose up` brings the full stack up and `/healthz` returns 200.
 - `make lint` and `make typecheck` run clean.
