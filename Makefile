@@ -16,7 +16,7 @@ run:
 	uvicorn fraud_detection.app:app --host 0.0.0.0 --port 8080
 
 migrate:
-	@echo "Apply migrations/001_init.sql against DB_URL"
+	@echo "Apply migrations/001_init.sql against DB_URL (idempotent, tracked via schema_migrations)"
 	python -c "from fraud_detection.db import PostgresStore; from fraud_detection.config import get_settings; s=PostgresStore(get_settings().db_url); s.apply_migrations(); print('migrated')"
 
 train:

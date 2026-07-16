@@ -96,6 +96,12 @@ def classify_readiness(failed: int, total: int) -> tuple[int, str]:
     return 200, "ready"
 
 
+@app.on_event("startup")
+async def _apply_migrations_on_startup() -> None:
+    if _DEFAULT_SETTINGS.db_url and _DEFAULT_DB.ping():
+        _DEFAULT_DB.apply_migrations()
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}

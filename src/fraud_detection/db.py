@@ -23,6 +23,7 @@ except Exception:  # pragma: no cover - optional in tests
 
 
 SCHEMA_SQL_PATH = "migrations/001_init.sql"
+SCHEMA_VERSION = 1
 
 
 def _loads(v: Any) -> Any:
@@ -62,11 +63,38 @@ class PostgresStore:
             return False
 
     def apply_migrations(self, sql: str | None = None) -> None:
-        if sql is None:
-            with open(SCHEMA_SQL_PATH, encoding="utf-8") as fh:
-                sql = fh.read()
+        """Apply the schema migration with idempotent tracking.
+
+        Maintains a ``schema_migrations`` table (matching the convention used
+        across the other services) so re-runs after ``make reset-db`` are a
+        no-op instead of re-executing the DDL. When ``sql`` is provided it is
+        applied verbatim (used by the ``make migrate`` entrypoint for ad-hoc
+        scripts); otherwise the canonical embedded migration identified by
+        ``SCHEMA_VERSION`` is applied once and recorded.
+        """
+        if sql is not None:
+            with self.conn.cursor() as cur:
+                cur.execute(sql)
+            return
         with self.conn.cursor() as cur:
-            cur.execute(sql)
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS schema_migrations ("
+                "    version    INTEGER PRIMARY KEY,"
+                "    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()"
+                ")"
+            )
+            cur.execute(
+                "SELECT 1 FROM schema_migrations WHERE version = %s",
+                (SCHEMA_VERSION,),
+            )
+            if cur.fetchone() is not None:
+                return
+            with open(SCHEMA_SQL_PATH, encoding="utf-8") as fh:
+                cur.execute(fh.read())
+            cur.execute(
+                "INSERT INTO schema_migrations (version) VALUES (%s)",
+                (SCHEMA_VERSION,),
+            )
 
     def _json(self, value: Any) -> Any:
         return json.dumps(value)
