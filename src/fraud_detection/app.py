@@ -193,7 +193,7 @@ async def list_models() -> ModelsResponse:
 
 @app.post("/v1/fraud/feedback")
 async def feedback(req: FeedbackRequest) -> Response:
-    if req.outcome not in {"chargeback", "fraud", "clean"}:
+    if req.outcome not in {"CHARGEBACK", "FRAUD", "CLEAN"}:
         raise HTTPException(status_code=422, detail="invalid outcome")
     inserted = _DEFAULT_DB.upsert_chargeback(
         tx_id=req.tx_id, outcome=req.outcome, reason_code=req.reason_code,

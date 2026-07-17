@@ -8,7 +8,7 @@ from fraud_detection.scoring import StubModel
 def test_reconstruct_matches_audit(tmp_path: Path) -> None:
     audit = {
         "schema": "fraud.audit/v1", "tx_id": "t1", "user_id": "u1",
-        "score": 0.5, "risk_band": "medium", "model_version": "chargeback-xgb@v3.2.0-stub",
+        "score": 0.5, "risk_band": "HIGH", "model_version": "chargeback-xgb@v3.2.0-stub",
         "variant": "champion", "top_features": [], "scored_at": "2026-07-13T10:00:00Z",
     }
     snapshot = {n: 0.0 for n in StubModel.feature_names}
@@ -16,14 +16,14 @@ def test_reconstruct_matches_audit(tmp_path: Path) -> None:
     rec = reconstruct(audit, snapshot)
     assert rec["tx_id"] == "t1"
     assert 0.0 < rec["reconstructed_score"] < 1.0
-    assert rec["risk_band"] == "medium"
+    assert rec["risk_band"] == "HIGH"
 
 
 def test_replay_cli(tmp_path: Path) -> None:
     audit_path = tmp_path / "audit.jsonl"
     audit = {
         "schema": "fraud.audit/v1", "tx_id": "t1", "user_id": "u1",
-        "score": 0.5, "risk_band": "medium", "model_version": "chargeback-xgb@v3.2.0-stub",
+        "score": 0.5, "risk_band": "HIGH", "model_version": "chargeback-xgb@v3.2.0-stub",
         "variant": "champion", "top_features": [], "scored_at": "2026-07-13T10:00:00Z",
         "feature_snapshot_uri": "",
     }
@@ -54,7 +54,7 @@ def test_replay_with_snapshot_arg(tmp_path: Path) -> None:
     snap_path.write_text(json.dumps({"tx_count_24h": 5, "known_bad": 1}))
     audit = {
         "schema": "fraud.audit/v1", "tx_id": "t1", "user_id": "u1",
-        "score": 0.5, "risk_band": "medium", "model_version": "chargeback-xgb@v3.2.0-stub",
+        "score": 0.5, "risk_band": "HIGH", "model_version": "chargeback-xgb@v3.2.0-stub",
         "variant": "champion", "top_features": [], "scored_at": "2026-07-13T10:00:00Z",
     }
     audit_path.write_text(json.dumps(audit) + "\n")

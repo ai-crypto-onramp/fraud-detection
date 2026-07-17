@@ -61,7 +61,7 @@ def test_risk_band_low_for_clean_request() -> None:
         challenger_fraction=0.0,
     )
     assert resp.variant == "champion"
-    assert resp.risk_band in {"low", "medium"}
+    assert resp.risk_band in {"LOW", "MEDIUM"}
 
 
 def test_stub_velocity_model_name() -> None:

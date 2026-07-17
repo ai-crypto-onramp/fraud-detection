@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import json
 import threading
+import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .config import Settings
+
+
+def _new_id() -> str:
+    # Python 3.14+ exposes uuid.uuid7; the service's venv currently runs 3.13
+    # (see Dockerfile / .venv), so fall back to uuid4 on older runtimes.
+    gen = getattr(uuid, "uuid7", None)
+    return str(gen() if gen is not None else uuid.uuid4())
 
 try:
     import psycopg  # type: ignore
@@ -112,18 +120,19 @@ class PostgresStore:
     ) -> None:
         with self.conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO fraud_scores (tx_id, user_id, score, risk_band, model_version, "
-                "variant, top_features, scored_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                (tx_id, user_id, score, risk_band, model_version, variant,
+                "INSERT INTO fraud_scores (id, tx_id, user_id, score, risk_band, model_version, "
+                "variant, top_features, scored_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (_new_id(), tx_id, user_id, score, risk_band, model_version, variant,
                  self._json(top_features), scored_at),
             )
 
     def insert_feature_values(self, tx_id: str, group: str, payload: Mapping[str, Any]) -> None:
         with self.conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO feature_values (tx_id, feature_group, payload) VALUES (%s,%s,%s) "
-                "ON CONFLICT (tx_id, feature_group) DO UPDATE SET payload = EXCLUDED.payload",
-                (tx_id, group, self._json(dict(payload))),
+                "INSERT INTO feature_values (id, tx_id, feature_group, payload) VALUES (%s,%s,%s,%s) "
+                "ON CONFLICT (tx_id, feature_group) DO UPDATE SET "
+                "payload = EXCLUDED.payload, updated_at = now()",
+                (_new_id(), tx_id, group, self._json(dict(payload))),
             )
 
     def insert_model_version(
@@ -132,11 +141,11 @@ class PostgresStore:
     ) -> None:
         with self.conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO model_versions (name, version, stage, metrics, traffic_split, trained_at) "
-                "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (name, version) DO UPDATE SET "
+                "INSERT INTO model_versions (id, name, version, stage, metrics, traffic_split, trained_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (name, version) DO UPDATE SET "
                 "stage=EXCLUDED.stage, metrics=EXCLUDED.metrics, traffic_split=EXCLUDED.traffic_split, "
                 "updated_at=now()",
-                (name, version, stage, self._json(dict(metrics)),
+                (_new_id(), name, version, stage, self._json(dict(metrics)),
                  self._json(dict(traffic_split)), trained_at),
             )
 
@@ -164,9 +173,9 @@ class PostgresStore:
     ) -> bool:
         with self.conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO chargeback_events (tx_id, outcome, reason_code, source, reported_at) "
-                "VALUES (%s,%s,%s,%s,%s) ON CONFLICT (tx_id, reported_at) DO NOTHING",
-                (tx_id, outcome, reason_code, source, reported_at),
+                "INSERT INTO chargeback_events (id, tx_id, outcome, reason_code, source, reported_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (tx_id, reported_at) DO NOTHING",
+                (_new_id(), tx_id, outcome, reason_code, source, reported_at),
             )
             return cur.rowcount > 0
 
@@ -189,9 +198,9 @@ class PostgresStore:
     ) -> None:
         with self.conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO drift_metrics (model_name, feature_name, psi, ks, breached) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                (model_name, feature_name, psi, ks, breached),
+                "INSERT INTO drift_metrics (id, model_name, feature_name, psi, ks, breached) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (_new_id(), model_name, feature_name, psi, ks, breached),
             )
 
     def fetch_scores_since(self, since: str, limit: int = 10000) -> list[dict[str, Any]]:

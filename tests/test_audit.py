@@ -20,7 +20,7 @@ def _req() -> ScoreRequest:
 
 
 def _resp() -> ScoreResponse:
-    return ScoreResponse(score=0.9, risk_band="high", model_version="m@v1",
+    return ScoreResponse(score=0.9, risk_band="HIGH", model_version="m@v1",
                          variant="challenger",
                          top_features=[TopFeature(name="known_bad", shap=0.3)],
                          scored_at="2026-07-13T10:00:00Z")

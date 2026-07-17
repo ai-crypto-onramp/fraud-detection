@@ -2,9 +2,9 @@ from fraud_detection.models.routing import pick_variant, resolve_split, risk_ban
 
 
 def test_risk_band_thresholds() -> None:
-    assert risk_band(0.8, 0.75, 0.40) == "high"
-    assert risk_band(0.5, 0.75, 0.40) == "medium"
-    assert risk_band(0.1, 0.75, 0.40) == "low"
+    assert risk_band(0.8, 0.75, 0.40) == "HIGH"
+    assert risk_band(0.5, 0.75, 0.40) == "MEDIUM"
+    assert risk_band(0.1, 0.75, 0.40) == "LOW"
 
 
 def test_stable_hash_is_deterministic() -> None:

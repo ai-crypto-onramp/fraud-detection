@@ -5,10 +5,10 @@ import hashlib
 
 def risk_band(score: float, threshold_high: float, threshold_medium: float) -> str:
     if score >= threshold_high:
-        return "high"
+        return "HIGH"
     if score >= threshold_medium:
-        return "medium"
-    return "low"
+        return "MEDIUM"
+    return "LOW"
 
 
 def stable_hash_unit(tx_id: str, salt: str = "") -> float:

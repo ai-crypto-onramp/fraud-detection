@@ -49,7 +49,7 @@ class FeedbackRequest(BaseModel):
     tx_id: str
     outcome: str
     reason_code: str | None = None
-    source: str = "api"
+    source: str = "API"
     reported_at: str
 
 
