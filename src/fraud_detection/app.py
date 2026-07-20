@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-import sys
+import os
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
@@ -29,27 +29,29 @@ log = logging.getLogger("fraud_detection.app")
 _DEFAULT_SETTINGS = get_settings()
 _DEV_MODE = _DEFAULT_SETTINGS.dev_mode
 
-if not _DEV_MODE:
-    # Production: require DB_URL, REDIS_URL, KAFKA_BROKERS, and a model
-    # source (FRAUD_MODEL_URL or MODEL_PATH). The StubModel is only allowed
-    # in DEV_MODE=1.
-    if not _DEFAULT_SETTINGS.db_url:
-        log.error("DB_URL not set and DEV_MODE!=1; refusing to start in production mode")
-        sys.exit(1)
-    if not _DEFAULT_SETTINGS.redis_url:
-        log.error("REDIS_URL not set and DEV_MODE!=1; refusing to start in production mode")
-        sys.exit(1)
-    if not _DEFAULT_SETTINGS.kafka_brokers:
-        log.error("KAFKA_BROKERS not set and DEV_MODE!=1; refusing to start in production mode")
-        sys.exit(1)
-    if not (_DEFAULT_SETTINGS.model_registry_url or _DEFAULT_SETTINGS.model_path):
-        log.error(
-            "FRAUD_MODEL_URL (MODEL_REGISTRY_URL) or MODEL_PATH required in production mode; "
-            "StubModel is only allowed in DEV_MODE=1 — set DEV_MODE=1 for local dev"
-        )
-        sys.exit(1)
-else:
+if _DEV_MODE:
     log.warning("DEV_MODE=1: using StubModel / in-memory defaults — NOT FOR PRODUCTION")
+
+
+@app.on_event("startup")
+async def _enforce_prod_requirements() -> None:
+    if os.environ.get("DEV_MODE") == "1":
+        return
+    missing: list[str] = []
+    if not os.environ.get("DB_URL"):
+        missing.append("DB_URL")
+    if not os.environ.get("REDIS_URL"):
+        missing.append("REDIS_URL")
+    if not os.environ.get("KAFKA_BROKERS"):
+        missing.append("KAFKA_BROKERS")
+    if not (os.environ.get("MODEL_REGISTRY_URL") or os.environ.get("MODEL_PATH")):
+        missing.append("FRAUD_MODEL_URL (MODEL_REGISTRY_URL) or MODEL_PATH")
+    if missing:
+        log.error(
+            "required env vars missing in production mode: %s — set DEV_MODE=1 for local dev",
+            ", ".join(missing),
+        )
+        raise SystemExit(1)
 
 _DEFAULT_DB = PostgresStore(_DEFAULT_SETTINGS.db_url)
 _DEFAULT_REDIS = RedisStore(_DEFAULT_SETTINGS.redis_url)
