@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import sys
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
@@ -22,7 +24,33 @@ from .scoring import ModelLoader, score_request
 
 app = FastAPI(title="Fraud Detection")
 
+log = logging.getLogger("fraud_detection.app")
+
 _DEFAULT_SETTINGS = get_settings()
+_DEV_MODE = _DEFAULT_SETTINGS.dev_mode
+
+if not _DEV_MODE:
+    # Production: require DB_URL, REDIS_URL, KAFKA_BROKERS, and a model
+    # source (FRAUD_MODEL_URL or MODEL_PATH). The StubModel is only allowed
+    # in DEV_MODE=1.
+    if not _DEFAULT_SETTINGS.db_url:
+        log.error("DB_URL not set and DEV_MODE!=1; refusing to start in production mode")
+        sys.exit(1)
+    if not _DEFAULT_SETTINGS.redis_url:
+        log.error("REDIS_URL not set and DEV_MODE!=1; refusing to start in production mode")
+        sys.exit(1)
+    if not _DEFAULT_SETTINGS.kafka_brokers:
+        log.error("KAFKA_BROKERS not set and DEV_MODE!=1; refusing to start in production mode")
+        sys.exit(1)
+    if not (_DEFAULT_SETTINGS.model_registry_url or _DEFAULT_SETTINGS.model_path):
+        log.error(
+            "FRAUD_MODEL_URL (MODEL_REGISTRY_URL) or MODEL_PATH required in production mode; "
+            "StubModel is only allowed in DEV_MODE=1 — set DEV_MODE=1 for local dev"
+        )
+        sys.exit(1)
+else:
+    log.warning("DEV_MODE=1: using StubModel / in-memory defaults — NOT FOR PRODUCTION")
+
 _DEFAULT_DB = PostgresStore(_DEFAULT_SETTINGS.db_url)
 _DEFAULT_REDIS = RedisStore(_DEFAULT_SETTINGS.redis_url)
 _DEFAULT_FEATURE_STORE = InMemoryFeatureStore(_DEFAULT_SETTINGS)

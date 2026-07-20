@@ -79,7 +79,7 @@ class Settings:
     force_variant: str | None = field(
         default_factory=lambda: _env("FORCE_VARIANT")
     )
-    audit_topic: str = field(default_factory=lambda: _env("AUDIT_TOPIC", "fraud.audit") or "fraud.audit")
+    audit_topic: str = field(default_factory=lambda: _env("AUDIT_TOPIC", "audit.v1") or "audit.v1")
     scored_topic: str = field(
         default_factory=lambda: _env("SCORED_TOPIC", "fraud.scored") or "fraud.scored"
     )
@@ -89,6 +89,8 @@ class Settings:
     offline_store_dir: str = field(
         default_factory=lambda: _env("OFFLINE_STORE_DIR", "data/offline") or "data/offline"
     )
+    model_path: str | None = field(default_factory=lambda: _env("MODEL_PATH"))
+    dev_mode: bool = field(default_factory=lambda: os.environ.get("DEV_MODE") == "1")
 
     def kafka_brokers_str(self) -> str:
         return ",".join(self.kafka_brokers)

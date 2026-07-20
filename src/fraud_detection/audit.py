@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
+import uuid
 from typing import Any
 
 from .db import PostgresStore
@@ -38,9 +40,27 @@ def build_audit_payload(
     }
 
 
+def build_envelope(payload: dict[str, Any], scored_at: str) -> dict[str, Any]:
+    payload_bytes = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    payload_hash = "sha256:" + hashlib.sha256(payload_bytes).hexdigest()
+    target_id = payload.get("tx_id") or ""
+    return {
+        "schema_version": "1",
+        "id": str(uuid.uuid4()),
+        "ts": scored_at,
+        "source_service": "fraud-detection",
+        "actor_id": "fraud-detection",
+        "action": "fraud.score",
+        "target_type": "transaction",
+        "target_id": target_id,
+        "payload_hash": payload_hash,
+        "payload": payload,
+    }
+
+
 class AuditEmitter:
     def __init__(self, db: PostgresStore | None = None, producer: Any = None,
-                 audit_topic: str = "fraud.audit") -> None:
+                 audit_topic: str = "audit.v1") -> None:
         self.db = db
         self.producer = producer
         self.audit_topic = audit_topic
@@ -68,16 +88,17 @@ class AuditEmitter:
             except Exception:
                 pass
         if self.producer is not None and _HAVE_AIOKAFKA:
+            envelope = build_envelope(payload, resp.scored_at)
             try:
                 import asyncio
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.ensure_future(
-                        self.producer.send_and_wait(self.audit_topic, value=json.dumps(payload).encode("utf-8"))
+                        self.producer.send_and_wait(self.audit_topic, value=json.dumps(envelope).encode("utf-8"))
                     )
                 else:
                     loop.run_until_complete(
-                        self.producer.send_and_wait(self.audit_topic, value=json.dumps(payload).encode("utf-8"))
+                        self.producer.send_and_wait(self.audit_topic, value=json.dumps(envelope).encode("utf-8"))
                     )
             except Exception:
                 pass
