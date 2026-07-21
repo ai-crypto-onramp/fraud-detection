@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -9,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from .audit import AuditEmitter
 from .config import Settings, get_settings
+from .consumers.kafka import FraudConsumer
 from .db import PostgresStore, RedisStore
 from .feature_store import FeatureStoreClient, InMemoryFeatureStore
 from .models.schemas import (
@@ -21,8 +23,12 @@ from .models.schemas import (
 from .observability.monitoring import VARIANT_TRAFFIC, AlertSink, DriftMonitor
 from .registry import ModelRegistry
 from .scoring import ModelLoader, score_request
+from .tracing import init_tracing, instrument_app
+
+init_tracing()
 
 app = FastAPI(title="Fraud Detection")
+instrument_app(app)
 
 log = logging.getLogger("fraud_detection.app")
 
@@ -53,6 +59,7 @@ async def _enforce_prod_requirements() -> None:
         )
         raise SystemExit(1)
 
+
 _DEFAULT_DB = PostgresStore(_DEFAULT_SETTINGS.db_url)
 _DEFAULT_REDIS = RedisStore(_DEFAULT_SETTINGS.redis_url)
 _DEFAULT_FEATURE_STORE = InMemoryFeatureStore(_DEFAULT_SETTINGS)
@@ -61,6 +68,10 @@ _DEFAULT_REGISTRY = ModelRegistry(_DEFAULT_SETTINGS, db=None, loader=_DEFAULT_LO
 _DEFAULT_AUDIT = AuditEmitter(db=None, audit_topic=_DEFAULT_SETTINGS.audit_topic)
 _DEFAULT_ALERTS = AlertSink()
 _DEFAULT_DRIFT = DriftMonitor(_DEFAULT_SETTINGS, db=None, alert_sink=_DEFAULT_ALERTS)
+
+# Kafka consumer task handle (started on startup when KAFKA_BROKERS is set).
+_consumer_task: asyncio.Task[Any] | None = None
+_consumer: FraudConsumer | None = None
 
 
 def db_ready() -> bool: return True
@@ -130,6 +141,50 @@ def classify_readiness(failed: int, total: int) -> tuple[int, str]:
 async def _apply_migrations_on_startup() -> None:
     if _DEFAULT_SETTINGS.db_url and _DEFAULT_DB.ping():
         _DEFAULT_DB.apply_migrations()
+
+
+@app.on_event("startup")
+async def _start_kafka_consumer() -> None:
+    """Start the FraudConsumer background task when KAFKA_BROKERS is set."""
+    global _consumer_task, _consumer
+    brokers = [b for b in (os.environ.get("KAFKA_BROKERS", "") or "").split(",") if b.strip()]
+    if not brokers:
+        return
+    _consumer = FraudConsumer(
+        _DEFAULT_SETTINGS,
+        handler=_async_score_handler,
+        feedback_handler=_async_feedback_handler,
+    )
+    _consumer_task = asyncio.create_task(_consumer.run())
+    log.info(
+        "fraud kafka consumer started: brokers=%s group=%s",
+        ",".join(brokers),
+        _DEFAULT_SETTINGS.kafka_consumer_group,
+    )
+
+
+@app.on_event("shutdown")
+async def _stop_kafka_consumer() -> None:
+    global _consumer_task, _consumer
+    task = _consumer_task
+    _consumer_task = None
+    if task is not None and not task.done():
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
+    if _consumer is not None:
+        await _consumer.stop()
+        _consumer = None
+
+
+async def _async_score_handler(req: ScoreRequest) -> ScoreResponse:
+    return _do_score(req)
+
+
+async def _async_feedback_handler(event: Any) -> None:
+    log.info("feedback event received: tx_id=%s", event.get("tx_id"))
 
 
 @app.get("/healthz")

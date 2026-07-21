@@ -105,3 +105,39 @@ async def test_consumer_handle_message_no_handler() -> None:
                     "device": {"fingerprint": "fp"}, "ip": "1.2.3.4"}).encode("utf-8"),
     )
     assert result["tx_id"] == "t" and result["skipped"] is True
+
+
+async def test_app_starts_and_stops_consumer_without_brokers(monkeypatch) -> None:
+    from fraud_detection import app as app_module
+
+    monkeypatch.delenv("KAFKA_BROKERS", raising=False)
+    await app_module._start_kafka_consumer()
+    assert app_module._consumer_task is None
+    assert app_module._consumer is None
+    await app_module._stop_kafka_consumer()
+
+
+async def test_app_starts_consumer_with_fake_broker(monkeypatch) -> None:
+    import asyncio
+
+    from fraud_detection import app as app_module
+    from fraud_detection.consumers.kafka import FraudConsumer
+
+    monkeypatch.setenv("KAFKA_BROKERS", "127.0.0.1:9092")
+
+    started = {"stop_called": False}
+
+    class FakeConsumer(FraudConsumer):
+        async def run(self) -> None:
+            await asyncio.sleep(0.05)
+
+        async def stop(self) -> None:
+            started["stop_called"] = True
+
+    monkeypatch.setattr(app_module, "FraudConsumer", FakeConsumer)
+    await app_module._start_kafka_consumer()
+    assert app_module._consumer_task is not None
+    await app_module._consumer_task
+    await app_module._stop_kafka_consumer()
+    assert started["stop_called"] is True
+    assert app_module._consumer_task is None

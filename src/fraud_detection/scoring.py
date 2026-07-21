@@ -89,6 +89,101 @@ def default_model_for_name(name: str) -> StubModel:
     return StubModel()
 
 
+class RealModel:
+    """Wraps a joblib/pickle-loaded model artifact and exposes the same
+    surface as StubModel: predict_proba + shap_contributions + feature_names.
+
+    The loaded artifact must be a dict-like object with the keys
+    `feature_names` (list[str]) and `predictor` (an object exposing
+    `predict_proba(X) -> array`), OR a bare sklearn/xgboost estimator with
+    `predict_proba` and (optionally) `feature_names_in_`.
+    """
+
+    def __init__(self, artifact: Any, name: str = "chargeback-xgb", version: str = "v1") -> None:
+        self.name = name
+        self.version = version
+        predictor, feature_names = _coerce_artifact(artifact)
+        self.predictor = predictor
+        self.feature_names = feature_names
+
+    def predict_proba(self, X: np.ndarray | list[list[float]]) -> list[float]:
+        arr = np.asarray(X, dtype=float)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+        raw = self.predictor.predict_proba(arr)
+        arr_out = np.asarray(raw, dtype=float)
+        if arr_out.ndim == 2 and arr_out.shape[1] >= 2:
+            return [float(min(0.99, max(0.01, float(p)))) for p in arr_out[:, 1]]
+        if arr_out.ndim == 2 and arr_out.shape[1] == 1:
+            return [float(min(0.99, max(0.01, float(p)))) for p in arr_out[:, 0]]
+        return [float(min(0.99, max(0.01, float(p)))) for p in arr_out.ravel()]
+
+    def shap_contributions(self, X: np.ndarray | list[list[float]]) -> list[dict[str, float]]:
+        arr = np.asarray(X, dtype=float)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+        out: list[dict[str, float]] = []
+        for row in arr:
+            contribs: dict[str, float] = {}
+            for i, name in enumerate(self.feature_names):
+                v = float(row[i]) if i < len(row) else 0.0
+                contribs[name] = v
+            out.append(contribs)
+        return out
+
+
+def _coerce_artifact(artifact: Any) -> tuple[Any, list[str]]:
+    if isinstance(artifact, Mapping):
+        predictor = artifact.get("predictor") or artifact.get("model") or artifact
+        names = list(artifact.get("feature_names") or [])
+    else:
+        predictor = artifact
+        names = []
+    if not names:
+        names = list(getattr(predictor, "feature_names_in_", []) or [])
+    if not names:
+        names = list(StubModel.feature_names)
+    return predictor, names
+
+
+def load_model_artifact(
+    name: str, version: str, *, registry_url: str | None = None,
+    model_path: str | None = None,
+) -> Any:
+    """Load a model artifact from disk or a model registry HTTP endpoint.
+
+    Resolution order:
+      1. Per-(name,version) env path MODEL_PATH_{NAME}_{VERSION}.
+      2. Caller-supplied `model_path` (typically MODEL_PATH for the champion).
+      3. HTTP GET `{MODEL_REGISTRY_URL}/models/{name}/{version}/artifact`
+         (streamed to a temp file then joblib/pickle-loaded).
+    Raises FileNotFoundError when no source is available.
+    """
+    import tempfile
+
+    env_key = f"MODEL_PATH_{name.upper().replace('-', '_')}_{version.upper().replace('.', '_')}"
+    path = os.environ.get(env_key) or model_path
+    if path and os.path.exists(path):
+        return _load_artifact_file(path)
+    if registry_url:
+        url = f"{registry_url.rstrip('/')}/models/{name}/{version}/artifact"
+        import urllib.request
+        with urllib.request.urlopen(url) as resp, tempfile.NamedTemporaryFile(suffix=".joblib") as tmp:
+            tmp.write(resp.read())
+            tmp.flush()
+            return _load_artifact_file(tmp.name)
+    raise FileNotFoundError(f"no model artifact for {name}@{version}")
+
+
+def _load_artifact_file(path: str) -> Any:
+    try:
+        import joblib
+        return joblib.load(path)
+    except Exception:
+        with open(path, "rb") as fh:
+            return pickle.load(fh)
+
+
 class ModelLoader:
     def __init__(self, registry_url: str | None = None) -> None:
         self.registry_url = registry_url
@@ -117,10 +212,27 @@ class ModelLoader:
                 self._stage_index.pop(name, None)
 
     def _load(self, name: str, version: str) -> Any:
-        path = os.environ.get(f"MODEL_PATH_{name.upper().replace('-', '_')}_{version.upper().replace('.', '_')}")
+        env_key = f"MODEL_PATH_{name.upper().replace('-', '_')}_{version.upper().replace('.', '_')}"
+        path = os.environ.get(env_key)
         if path and os.path.exists(path):
-            with open(path, "rb") as fh:
-                return pickle.load(fh)
+            try:
+                artifact = _load_artifact_file(path)
+                return RealModel(artifact, name=name, version=version)
+            except Exception:
+                return default_model_for_name(name)
+        default_path = os.environ.get("MODEL_PATH")
+        if default_path and os.path.exists(default_path):
+            try:
+                artifact = _load_artifact_file(default_path)
+                return RealModel(artifact, name=name, version=version)
+            except Exception:
+                return default_model_for_name(name)
+        if self.registry_url:
+            try:
+                artifact = load_model_artifact(name, version, registry_url=self.registry_url)
+                return RealModel(artifact, name=name, version=version)
+            except Exception:
+                return default_model_for_name(name)
         return default_model_for_name(name)
 
     def register_stage(self, name: str, stage: str, version: str) -> None:
